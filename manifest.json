@@ -1,0 +1,31 @@
+{
+    "manifest_version": 3,
+    "name": "SIP Softphone",
+    "version": "1.0.0",
+    "description": "Софтфон для звонков на sip-номера",
+    "action": {
+        "default_popup": "index.html"
+    },
+    "permissions": [
+        "scripting",
+        "activeTab",
+        "storage",
+        "tabs",
+        "alarms",
+        "contentSettings",
+        "notifications"
+    ],
+    "host_permissions": [
+        "<all_urls>"
+    ],
+    "content_scripts": [
+        {
+            "js": [
+                "src/content.tsx"
+            ],
+            "matches": [
+                "https://*/*"
+            ]
+        }
+    ]
+}
