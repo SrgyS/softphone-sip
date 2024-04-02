@@ -7,7 +7,6 @@ import { RefObject, useEffect, useRef, useState } from 'react';
 import { IncomingRTCSessionEvent } from 'jssip/lib/UA';
 // import { IRegisterValues } from '../../types/types';
 import { RTCSession } from 'jssip/lib/RTCSession';
-import callTone from '../public/04335.mp3';
 import ringTone from '../public/NokiaTune.mp3';
 
 const callStatuses = {
@@ -28,10 +27,7 @@ interface ICallData {
 const App = () => {
     const [number, setNumber] = useState('');
     const [sipPhone, setSipPhone] = useState<UA | null>(null);
-    const [incomingSession, setIncomingSession] = useState<RTCSession | null>(
-        null
-    );
-    const [activeCall, setActiveCall] = useState<RTCSession | null>(null);
+    const [activeSession, setActiveSession] = useState<RTCSession | null>(null);
     const [callLog, setCallLog] = useState<ICallData[]>([]);
     const [callStatus, setCallStatus] = useState(callStatuses.idle);
     const [callDuration, setCallDuration] = useState(0);
@@ -58,6 +54,7 @@ const App = () => {
     });
 
     const makeCall = () => {
+        console.log('makeCall start');
         if (!sipPhone) return;
         console.log('Calling...', number);
         setCallStatus(callStatuses.calling);
@@ -75,7 +72,7 @@ const App = () => {
                     console.log('peerconnection', data);
                     const peerconnection = data.peerconnection;
 
-                    peerconnection.onaddstream = (e) => {
+                    peerconnection.onaddstream = (e: any) => {
                         console.log('add stream', e);
                         if (remoteAudioRef.current) {
                             const remoteAudio = remoteAudioRef.current;
@@ -83,14 +80,14 @@ const App = () => {
                             remoteAudio.play();
                         }
 
-                        const stream = new MediaStream();
-                        console.log(peerconnection.getReceivers());
-                        peerconnection
-                            .getReceivers()
-                            .forEach(function (receiver) {
-                                console.log(receiver);
-                                stream.addTrack(receiver.track);
-                            });
+                        // const stream = new MediaStream();
+                        // console.log(peerconnection.getReceivers());
+                        // peerconnection
+                        //     .getReceivers()
+                        //     .forEach(function (receiver: any) {
+                        //         console.log(receiver);
+                        //         stream.addTrack(receiver.track);
+                        //     });
                     };
                 },
 
@@ -113,7 +110,7 @@ const App = () => {
                         setCallStatus(callStatuses.idle);
                     }, 1500);
                     setCallStatus(callStatuses.ended);
-                    setActiveCall(null);
+                    setActiveSession(null);
                     addCallLog(createCallData(false, '', number, true));
                     setCallDuration(0);
                     setStartTimer(false);
@@ -128,29 +125,30 @@ const App = () => {
         };
 
         const session = sipPhone.call(`sip:${number}@voip.uiscom.ru`, options);
-        console.log('make call', session);
-        setActiveCall(session);
+        console.log('set active session make call', session);
+        setActiveSession(session);
     };
 
     const answerCall = () => {
-        if (!incomingSession) return;
+        if (activeSession?.direction === 'outgoing') return;
 
         const options = {
             mediaConstraints: { audio: true, video: false },
         };
 
-        incomingSession.answer(options);
+        activeSession?.answer(options);
 
         setCallStatus(callStatuses.inCall);
     };
 
     const rejectCall = () => {
-        if (!incomingSession) return;
-
-        incomingSession.terminate();
+        console.log('отклоняю входящий');
+        if (!activeSession) return;
+        console.log('отклоняю входящий session');
+        activeSession.terminate();
         setCallDuration(0);
         setStartTimer(false);
-        setIncomingSession(null);
+        setActiveSession(null);
     };
 
     const handleEndCall = () => {
@@ -158,35 +156,36 @@ const App = () => {
             'функция endCall, callStatus: ',
             callStatus,
             'activeCall: ',
-            activeCall
+            activeSession
         );
-        if (callStatus === callStatuses.inCall && activeCall) {
+        if (callStatus === callStatuses.inCall && activeSession) {
             console.log('завершаю исходящий');
-            activeCall.terminate();
-            setActiveCall(null);
+            activeSession.terminate();
+            setActiveSession(null);
             setTimeout(() => {
                 setCallStatus(callStatuses.idle);
             }, 1500);
             setCallStatus(callStatuses.ended);
             setCallDuration(0);
             setStartTimer(false);
-        } else if (callStatus === callStatuses.calling && activeCall) {
+        } else if (callStatus === callStatuses.calling && activeSession) {
             console.log('отменяю исходящий вызов');
-            activeCall.terminate();
-            setActiveCall(null);
+            activeSession.terminate();
+            setActiveSession(null);
             setTimeout(() => {
                 setCallStatus(callStatuses.idle);
             }, 1500);
             setCallStatus(callStatuses.ended);
             setCallDuration(0);
             setStartTimer(false);
-        } else if (incomingSession) {
+        } else if (activeSession) {
             console.log('завершаю входящий');
             rejectCall();
         }
     };
 
     const registerToSipServer = () => {
+        console.log('registerToSipServer');
         const hardcodedLogin = '0344900';
         const hardcodedServer = 'voip.uiscom.ru';
         const hardcodedPassword = 'bzTeHwYVs9';
@@ -200,13 +199,16 @@ const App = () => {
 
         const phone = new JsSIP.UA(configuration);
         setSipPhone(phone);
+        phone.start();
 
         phone.on('registered', () => {
             console.log('Registered');
             setIsAuth(true);
+            console.log('Set isAuth');
         });
         phone.on('unregistered', () => {
             console.log('logout');
+            setIsAuth(false);
         });
         phone.on('registrationFailed', (data: any) =>
             console.error('Registration failed:', data)
@@ -216,34 +218,44 @@ const App = () => {
             // Дополнительные действия при отключении
         });
         phone.on('newRTCSession', (data: IncomingRTCSessionEvent) => {
-            // e.session.on('peerconnection', (data: any) => {
-            //     console.log('peerconnection', data);
-            //     const peerconnection = data.peerconnection;
-
-            //     peerconnection.onaddstream = (e) => {
-            //         console.log('add stream', e);
-            //         if (remoteAudioRef.current) {
-            //             const remoteAudio = remoteAudioRef.current;
-            //             remoteAudio.srcObject = e.stream;
-            //             remoteAudio.play();
-            //         }
-
-            //         const stream = new MediaStream();
-            //         console.log(peerconnection.getReceivers());
-            //         peerconnection.getReceivers().forEach(function (receiver) {
-            //             console.log(receiver);
-            //             stream.addTrack(receiver.track);
-            //         });
-            //     };
-            // });
             const { originator, session } = data;
+
+            session.on('peerconnection', (data: any) => {
+                console.log('peerconnection in', data);
+                const peerconnection = data.peerconnection;
+
+                peerconnection.onaddstream = (e: any) => {
+                    console.log('add stream in', e);
+
+                    if (remoteAudioRef.current) {
+                        console.log('remote audio already exists');
+                        const remoteAudio = remoteAudioRef.current;
+                        remoteAudio.srcObject = e.stream;
+                        console.log('включаю play');
+                        remoteAudio.play();
+                    }
+
+                    const stream = new MediaStream();
+                    console.log(
+                        'new MediaStream',
+                        peerconnection.getReceivers()
+                    );
+                    peerconnection
+                        .getReceivers()
+                        .forEach(function (receiver: any) {
+                            console.log('receiver', receiver);
+                            stream.addTrack(receiver.track);
+                        });
+                };
+            });
 
             if (originator === 'remote') {
                 console.log('Incoming call');
                 setCallStatus(callStatuses.calling);
+                console.log('play ringtone');
                 startPlayAudio(ringtoneAudioRef);
 
-                setIncomingSession(session);
+                setActiveSession(session);
                 session.on('failed', () => {
                     console.error('Incoming call failed');
                     setCallDuration(0);
@@ -252,8 +264,8 @@ const App = () => {
                     addCallLog(
                         createCallData(
                             true,
-                            e.session.remote_identity.display_name,
-                            e.session.remote_identity.uri.user,
+                            session.remote_identity.display_name,
+                            session.remote_identity.uri.user,
                             false
                         )
                     );
@@ -281,8 +293,8 @@ const App = () => {
                     addCallLog(
                         createCallData(
                             true,
-                            e.session.remote_identity.display_name,
-                            e.session.remote_identity.uri.user,
+                            session.remote_identity.display_name,
+                            session.remote_identity.uri.user,
                             true
                         )
                     );
@@ -291,24 +303,7 @@ const App = () => {
                     console.log('incoming progress');
                     setStartTimer(true);
                 });
-                // e.session.on('peerconnection', (e) => {
-                //     console.log('peerconnection', e);
-                //     const peerconnection = e.peerconnection;
-
-                //     peerconnection.ontrack = (event) => {
-                //         console.log('New track added:', event.track);
-                //         const remoteAudio = remoteAudioRef.current;
-                //         if (remoteAudio) {
-                //             remoteAudio.srcObject = new MediaStream([
-                //                 event.track,
-                //             ]);
-                //             remoteAudio.play();
-                //         }
-                //     };
-                // });
             }
-
-            phone.start();
         });
     };
 
@@ -331,22 +326,9 @@ const App = () => {
             ref.current.currentTime = 0;
         }
     };
-    // const playRingtone = () => {
-    //     if (ringtoneAudioRef.current) {
-    //         ringtoneAudioRef.current.play();
-    //         console.log('playing');
-    //     }
-    // };
-
-    // const stopPlayRingtone = () => {
-    //     if (ringtoneAudioRef.current) {
-    //         ringtoneAudioRef.current.pause();
-    //         ringtoneAudioRef.current.currentTime = 0;
-    //     }
-    // };
 
     useEffect(() => {
-        console.log('isAuth', isAuth);
+        console.log('use Effect isAuth', isAuth);
         let duration: number;
         if (startTimer) {
             duration = setInterval(() => {
@@ -356,11 +338,12 @@ const App = () => {
         return () => {
             if (duration) clearInterval(duration);
         };
-    }, [startTimer]);
+    }, [startTimer, isAuth]);
 
     return (
         <div>
-            <h1>SIPhone{isAuth}</h1>
+            <h1>SIPhone</h1>
+
             {isAuth ? (
                 <div>
                     <button onClick={handleLogout}>выйти</button>
@@ -375,16 +358,10 @@ const App = () => {
                         <button onClick={makeCall}>Call</button>
                     </div>
                     <div>
-                        <button
-                            onClick={answerCall}
-                            disabled={!incomingSession}
-                        >
+                        <button onClick={answerCall} disabled={!activeSession}>
                             Ответить
                         </button>
-                        <button
-                            onClick={rejectCall}
-                            disabled={!incomingSession}
-                        >
+                        <button onClick={rejectCall} disabled={!activeSession}>
                             Отклонить
                         </button>
                         <button onClick={handleEndCall}>Завершить</button>
