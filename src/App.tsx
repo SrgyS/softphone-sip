@@ -1,31 +1,43 @@
 import './App.css';
 
+import { Button, Flex, Form, Input, message } from 'antd';
+import {
+    ClockCircleOutlined,
+    HddOutlined,
+    LockOutlined,
+    LogoutOutlined,
+    PhoneFilled,
+    UserOutlined,
+} from '@ant-design/icons';
 // export default registerToSipServer;
 import JsSIP, { UA } from 'jssip';
-import { RefObject, useEffect, useRef, useState } from 'react';
+import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
+import { formatDate, formatDuration } from './callUtils';
 
+import { CallLogList } from './phone/CallLogList';
 import { IncomingRTCSessionEvent } from 'jssip/lib/UA';
 // import { IRegisterValues } from '../../types/types';
 import { RTCSession } from 'jssip/lib/RTCSession';
 import ringTone from '../public/NokiaTune.mp3';
 
-const callStatuses = {
+export const callStatuses = {
     idle: '',
     calling: 'вызов',
     inCall: 'разговор',
     ended: 'завершено',
 };
 
-interface ICallData {
+export interface ICallData {
     isIncoming: boolean;
     name: string;
-    date: Date;
+    date: string;
     number: string;
     success: boolean;
 }
 
 const App = () => {
     const [number, setNumber] = useState('');
+    const [incomingNumber, setIncomingNumber] = useState('');
     const [sipPhone, setSipPhone] = useState<UA | null>(null);
     const [activeSession, setActiveSession] = useState<RTCSession | null>(null);
     const [callLog, setCallLog] = useState<ICallData[]>([]);
@@ -33,10 +45,69 @@ const App = () => {
     const [callDuration, setCallDuration] = useState(0);
     const [startTimer, setStartTimer] = useState(false);
     const [isAuth, setIsAuth] = useState(false);
+    const [currentUser, setCurrentUser] = useState<string>('');
 
     const addCallLog = (callData: ICallData) => {
         setCallLog((prevLog) => [...prevLog, callData]);
+
+        // if (currentUser) {
+        //     const userCallLogData = localStorage.getItem(
+        //         `callLog_${currentUser}`
+        //     );
+        //     const userCallLog = userCallLogData
+        //         ? JSON.parse(userCallLogData)
+        //         : [];
+        //     userCallLog.push(callData);
+        //     localStorage.setItem(
+        //         `callLog_${currentUser}`,
+        //         JSON.stringify(userCallLog)
+        //     );
+        // }
     };
+
+    // const addCallLog = (callData: ICallData, currentUser: string) => {
+    //     console.log('start addCallLog', callData);
+    //     setCallLog((prevLog) => {
+    //         const newLog = [...prevLog, callData];
+    //         console.log('new calllog', newLog, 'currentUser', currentUser);
+    //         if (currentUser) {
+    //             console.log(
+    //                 'current user',
+    //                 currentUser,
+    //                 'сохраняю в локал сторедж'
+    //             );
+    //             localStorage.setItem(
+    //                 `callLog_${currentUser}`,
+    //                 JSON.stringify(newLog)
+    //             );
+    //         }
+    //         return newLog;
+    //     });
+    // };
+
+    // const memoizedCallLog = useMemo(() => {
+    //     return callLog.reverse();
+    // }, [callLog]);
+
+    const handleNumberChange = useCallback(
+        (e: React.ChangeEvent<HTMLInputElement>) => {
+            setNumber(e.target.value);
+        },
+        []
+    ); // Пустой массив зависимостей, так как ф
+
+    const resetCall = () => {
+        setTimeout(() => {
+            setCallStatus(callStatuses.idle);
+        }, 2000);
+        setActiveSession(null);
+        setCallDuration(0);
+        setStartTimer(false);
+        setCallStatus(callStatuses.ended);
+        setNumber('');
+        setIncomingNumber('');
+    };
+
     const ringtoneAudioRef = useRef<HTMLAudioElement | null>(null);
     const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -48,17 +119,18 @@ const App = () => {
     ) => ({
         isIncoming: isIncoming,
         name: name,
-        date: new Date(),
+        date: formatDate(new Date()),
         number: number,
         success: success,
     });
 
-    const makeCall = () => {
+    const makeCall = (number: string) => {
         console.log('makeCall start');
         if (!sipPhone) return;
         console.log('Calling...', number);
         setCallStatus(callStatuses.calling);
         setStartTimer(true);
+        setNumber(number);
 
         const options = {
             mediaConstraints: { audio: true, video: false },
@@ -97,23 +169,13 @@ const App = () => {
                 failed: (e: any) => {
                     console.error('исх Call failed:', e);
                     addCallLog(createCallData(false, '', number, false));
-                    setTimeout(() => {
-                        setCallStatus(callStatuses.idle);
-                    }, 1500);
-                    setCallStatus(callStatuses.ended);
-                    setCallDuration(0);
-                    setStartTimer(false);
+                    resetCall();
                 },
                 ended: () => {
                     console.log('исх Call ended');
-                    setTimeout(() => {
-                        setCallStatus(callStatuses.idle);
-                    }, 1500);
-                    setCallStatus(callStatuses.ended);
-                    setActiveSession(null);
+
                     addCallLog(createCallData(false, '', number, true));
-                    setCallDuration(0);
-                    setStartTimer(false);
+                    resetCall();
                 },
                 confirmed: () => {
                     console.log('исходящий вызов принят');
@@ -141,47 +203,30 @@ const App = () => {
         setCallStatus(callStatuses.inCall);
     };
 
-    const rejectCall = () => {
-        console.log('отклоняю входящий');
-        if (!activeSession) return;
-        console.log('отклоняю входящий session');
-        activeSession.terminate();
-        setCallDuration(0);
-        setStartTimer(false);
-        setActiveSession(null);
-    };
+    // const rejectCall = () => {
+    //     console.log('отклоняю входящий');
+    //     if (!activeSession) return;
+    //     console.log('отклоняю входящий session');
+    //     activeSession.terminate();
+    //     resetCall();
+    // };
 
-    const handleEndCall = () => {
+    const endCall = () => {
         console.log(
             'функция endCall, callStatus: ',
             callStatus,
             'activeCall: ',
             activeSession
         );
-        if (callStatus === callStatuses.inCall && activeSession) {
-            console.log('завершаю исходящий');
-            activeSession.terminate();
-            setActiveSession(null);
-            setTimeout(() => {
-                setCallStatus(callStatuses.idle);
-            }, 1500);
-            setCallStatus(callStatuses.ended);
-            setCallDuration(0);
-            setStartTimer(false);
-        } else if (callStatus === callStatuses.calling && activeSession) {
-            console.log('отменяю исходящий вызов');
-            activeSession.terminate();
-            setActiveSession(null);
-            setTimeout(() => {
-                setCallStatus(callStatuses.idle);
-            }, 1500);
-            setCallStatus(callStatuses.ended);
-            setCallDuration(0);
-            setStartTimer(false);
-        } else if (activeSession) {
-            console.log('завершаю входящий');
-            rejectCall();
-        }
+        activeSession?.terminate();
+        // if (activeSession?.direction === 'outgoing') {
+        //     console.log('завершаю исходящий');
+        //     activeSession.terminate();
+        //     resetCall();
+        // } else if (activeSession) {
+        //     console.log('завершаю входящий');
+        //     rejectCall();
+        // }
     };
 
     const registerToSipServer = () => {
@@ -204,15 +249,18 @@ const App = () => {
         phone.on('registered', () => {
             console.log('Registered');
             setIsAuth(true);
+            message.success('Зарегистрирован', 3);
             console.log('Set isAuth');
+            setCurrentUser(`${hardcodedLogin}@${hardcodedServer}`);
         });
         phone.on('unregistered', () => {
             console.log('logout');
             setIsAuth(false);
         });
-        phone.on('registrationFailed', (data: any) =>
-            console.error('Registration failed:', data)
-        );
+        phone.on('registrationFailed', (data: any) => {
+            console.error('Registration failed:', data);
+            message.error('Ошибка при регистрации');
+        });
         phone.on('disconnected', () => {
             console.log('Отключение от SIP-сервера');
             // Дополнительные действия при отключении
@@ -254,12 +302,12 @@ const App = () => {
                 setCallStatus(callStatuses.calling);
                 console.log('play ringtone');
                 startPlayAudio(ringtoneAudioRef);
+                setIncomingNumber(session.remote_identity.uri.user);
 
                 setActiveSession(session);
                 session.on('failed', () => {
                     console.error('Incoming call failed');
-                    setCallDuration(0);
-                    setStartTimer(false);
+
                     stopPlayAudio(ringtoneAudioRef);
                     addCallLog(
                         createCallData(
@@ -269,10 +317,7 @@ const App = () => {
                             false
                         )
                     );
-                    setTimeout(() => {
-                        setCallStatus(callStatuses.idle);
-                    }, 1500);
-                    setCallStatus(callStatuses.ended);
+                    resetCall();
                 });
 
                 session.on('confirmed', () => {
@@ -283,13 +328,6 @@ const App = () => {
                     stopPlayAudio(ringtoneAudioRef);
                 });
                 session.on('ended', () => {
-                    console.log('Incoming call ended');
-                    setCallDuration(0);
-                    setStartTimer(false);
-                    setTimeout(() => {
-                        setCallStatus(callStatuses.idle);
-                    }, 1500);
-                    setCallStatus(callStatuses.ended);
                     addCallLog(
                         createCallData(
                             true,
@@ -298,6 +336,7 @@ const App = () => {
                             true
                         )
                     );
+                    resetCall();
                 });
                 session.on('progress', () => {
                     console.log('incoming progress');
@@ -306,12 +345,17 @@ const App = () => {
             }
         });
     };
-
+    // const onFinish = (values: any) => {
+    //     console.log('Received values of form: ', values);
+    // };
     const handleLogout = () => {
         sipPhone?.terminateSessions();
         sipPhone?.unregister();
         setIsAuth(false);
         setSipPhone(null);
+        resetCall();
+        setCallLog([]);
+        localStorage.removeItem(`callLog_${currentUser}`);
     };
     const startPlayAudio = (ref: RefObject<HTMLAudioElement>) => {
         if (ref.current) {
@@ -328,7 +372,6 @@ const App = () => {
     };
 
     useEffect(() => {
-        console.log('use Effect isAuth', isAuth);
         let duration: number;
         if (startTimer) {
             duration = setInterval(() => {
@@ -338,55 +381,220 @@ const App = () => {
         return () => {
             if (duration) clearInterval(duration);
         };
-    }, [startTimer, isAuth]);
+    }, [startTimer]);
+
+    useEffect(() => {
+        if (currentUser) {
+            const userCallLogData = localStorage.getItem(
+                `callLog_${currentUser}`
+            );
+            const userCallLog = userCallLogData
+                ? JSON.parse(userCallLogData)
+                : [];
+            setCallLog(userCallLog);
+            console.log('user calllog', userCallLog);
+        }
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (currentUser) {
+            localStorage.setItem(
+                `callLog_${currentUser}`,
+                JSON.stringify(callLog)
+            );
+        }
+    }, [callLog, currentUser]);
 
     return (
-        <div>
-            <h1>SIPhone</h1>
+        <Flex
+            vertical
+            gap={10}
+            style={{
+                width: '350px',
+                height: '420px',
+                padding: '10px',
+                overflow: 'auto',
+            }}
+        >
+            <h1
+                style={{ textAlign: 'center', fontSize: '18px', margin: '5px' }}
+            >
+                SIPhone-1.1
+            </h1>
 
             {isAuth ? (
-                <div>
-                    <button onClick={handleLogout}>выйти</button>
-                    <div>{callStatus}</div>
-                    <div>{callDuration}</div>
-                    <div>
-                        <input
-                            type='text'
-                            value={number}
-                            onChange={(e) => setNumber(e.target.value)}
+                <>
+                    <Flex align='center' justify='space-between'>
+                        <p>{currentUser}</p>
+                        <Button
+                            type='link'
+                            onClick={handleLogout}
+                            icon={<LogoutOutlined />}
                         />
-                        <button onClick={makeCall}>Call</button>
-                    </div>
+                    </Flex>
+                    <Flex justify='center'>
+                        <div
+                            style={{
+                                fontSize: '18px',
+                                fontWeight: 'bold',
+                                color: 'blue',
+                                lineHeight: 1,
+                                height: '18px',
+                            }}
+                        >
+                            {callStatus}
+                        </div>
+                    </Flex>
+                    <Flex
+                        justify='space-between'
+                        align='center'
+                        style={{ padding: '6px 10px' }}
+                    >
+                        <Flex align='center' gap={4}>
+                            {' '}
+                            <UserOutlined />
+                            <p>имя</p>
+                        </Flex>
+
+                        <p>номер:{number || incomingNumber}</p>
+                        <Flex gap={5}>
+                            {' '}
+                            <ClockCircleOutlined />
+                            {formatDuration(callDuration)}
+                        </Flex>
+                    </Flex>
+
+                    <>
+                        <Input
+                            placeholder='введите номер'
+                            value={number}
+                            onChange={handleNumberChange}
+                            disabled={callStatus !== callStatuses.idle}
+                        />
+                        {callStatus === callStatuses.idle && (
+                            <Button
+                                block
+                                style={{
+                                    background: 'lightgreen',
+                                    color: 'white',
+                                    padding: '5px 0',
+                                }}
+                                icon={<PhoneFilled />}
+                                onClick={() => makeCall(number)}
+                                disabled={!number}
+                            />
+                        )}
+                        <Flex justify='center' align='center' gap={8}>
+                            {callStatus === callStatuses.calling &&
+                                activeSession?.direction === 'incoming' && (
+                                    <Button
+                                        style={{
+                                            width: '50%',
+                                            background: 'lightgreen',
+                                        }}
+                                        className='answer-btn'
+                                        type='primary'
+                                        onClick={answerCall}
+                                        disabled={!activeSession}
+                                        icon={<PhoneFilled />}
+                                    />
+                                )}
+
+                            {(callStatus === callStatuses.calling ||
+                                callStatus === callStatuses.inCall) && (
+                                <Button
+                                    style={{ width: '50%' }}
+                                    type='primary'
+                                    danger
+                                    onClick={endCall}
+                                    icon={<PhoneFilled rotate={-120} />}
+                                />
+                            )}
+                        </Flex>
+                    </>
+
                     <div>
-                        <button onClick={answerCall} disabled={!activeSession}>
-                            Ответить
-                        </button>
-                        <button onClick={rejectCall} disabled={!activeSession}>
-                            Отклонить
-                        </button>
-                        <button onClick={handleEndCall}>Завершить</button>
-                    </div>
-                    <div>
-                        {callLog.map((item) => (
-                            <div key={item.date.toString()} onClick={makeCall}>
-                                <p>Имя: {item.name}</p>
-                                <p>Номер: {item.number}</p>
-                                <p>Дата: {item.date.toISOString()}</p>
-                            </div>
-                        ))}
+                        <CallLogList
+                            callLog={callLog.reverse()}
+                            makeCall={makeCall}
+                            callStatus={callStatus}
+                        />
+
                         <audio ref={ringtoneAudioRef} src={ringTone} loop />
                         <audio ref={remoteAudioRef} autoPlay />
                     </div>
-                </div>
+                </>
             ) : (
-                <div>
-                    <input placeholder='login' />
-                    <input placeholder='server' />
-                    <input placeholder='password' />
-                    <button onClick={registerToSipServer}>Register</button>
+                <div style={{ padding: '10px' }}>
+                    <Form
+                        name='normal_login'
+                        className='login-form'
+                        initialValues={{ remember: true }}
+                        onFinish={registerToSipServer}
+                    >
+                        <Form.Item
+                            name='login'
+                            rules={[
+                                {
+                                    required: false,
+                                    message: 'Введите логин!',
+                                },
+                            ]}
+                        >
+                            <Input
+                                prefix={
+                                    <UserOutlined className='site-form-item-icon' />
+                                }
+                                placeholder='логин'
+                            />
+                        </Form.Item>
+                        <Form.Item
+                            name='server'
+                            rules={[
+                                {
+                                    required: false,
+                                    message: 'Введите имя сервера!',
+                                },
+                            ]}
+                        >
+                            <Input
+                                prefix={
+                                    <HddOutlined className='site-form-item-icon' />
+                                }
+                                placeholder='сервер'
+                            />
+                        </Form.Item>
+                        <Form.Item
+                            name='password'
+                            rules={[
+                                {
+                                    required: false,
+                                    message: 'Введите пароль!',
+                                },
+                            ]}
+                        >
+                            <Input
+                                prefix={
+                                    <LockOutlined className='site-form-item-icon' />
+                                }
+                                type='password'
+                                placeholder='Пароль'
+                            />
+                        </Form.Item>
+                        <Form.Item>
+                            <Button
+                                block
+                                type='primary'
+                                htmlType='submit'
+                                className='login-form-Button'
+                            >
+                                зарегистрироваться
+                            </Button>
+                        </Form.Item>
+                    </Form>
                 </div>
             )}
-        </div>
+        </Flex>
     );
 };
 
