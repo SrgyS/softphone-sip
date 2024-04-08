@@ -1,10 +1,8 @@
 import './App.css';
 
-import { Button, Flex, Form, Input, message } from 'antd';
+import { Button, Flex, Input, message } from 'antd';
 import {
     ClockCircleOutlined,
-    HddOutlined,
-    LockOutlined,
     LogoutOutlined,
     PhoneFilled,
     UserOutlined,
@@ -14,6 +12,7 @@ import JsSIP, { UA } from 'jssip';
 import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { formatDate, formatDuration } from './callUtils';
 
+import Auth from './components/auth/Auth';
 import { CallLogList } from './phone/CallLogList';
 import { IncomingRTCSessionEvent } from 'jssip/lib/UA';
 // import { IRegisterValues } from '../../types/types';
@@ -44,7 +43,7 @@ const App = () => {
     const [callStatus, setCallStatus] = useState(callStatuses.idle);
     const [callDuration, setCallDuration] = useState(0);
     const [startTimer, setStartTimer] = useState(false);
-    const [isAuth, setIsAuth] = useState(false);
+    // const [isAuth, setIsAuth] = useState(false);
     const [currentUser, setCurrentUser] = useState<string>('');
 
     const addCallLog = (callData: ICallData) => {
@@ -248,14 +247,14 @@ const App = () => {
 
         phone.on('registered', () => {
             console.log('Registered');
-            setIsAuth(true);
+            // setIsAuth(true);
             message.success('Зарегистрирован', 3);
-            console.log('Set isAuth');
+
             setCurrentUser(`${hardcodedLogin}@${hardcodedServer}`);
         });
         phone.on('unregistered', () => {
             console.log('logout');
-            setIsAuth(false);
+            setCurrentUser('');
         });
         phone.on('registrationFailed', (data: any) => {
             console.error('Registration failed:', data);
@@ -351,7 +350,8 @@ const App = () => {
     const handleLogout = () => {
         sipPhone?.terminateSessions();
         sipPhone?.unregister();
-        setIsAuth(false);
+        // setIsAuth(false);
+        setCurrentUser('');
         setSipPhone(null);
         resetCall();
         setCallLog([]);
@@ -419,10 +419,10 @@ const App = () => {
             <h1
                 style={{ textAlign: 'center', fontSize: '18px', margin: '5px' }}
             >
-                SIPhone-1.1
+                SIPhone
             </h1>
 
-            {isAuth ? (
+            {currentUser ? (
                 <>
                     <Flex align='center' justify='space-between'>
                         <p>{currentUser}</p>
@@ -453,10 +453,9 @@ const App = () => {
                         <Flex align='center' gap={4}>
                             {' '}
                             <UserOutlined />
-                            <p>имя</p>
                         </Flex>
 
-                        <p>номер:{number || incomingNumber}</p>
+                        <p>{number || incomingNumber}</p>
                         <Flex gap={5}>
                             {' '}
                             <ClockCircleOutlined />
@@ -526,7 +525,7 @@ const App = () => {
                 </>
             ) : (
                 <div style={{ padding: '10px' }}>
-                    <Form
+                    {/* <Form
                         name='normal_login'
                         className='login-form'
                         initialValues={{ remember: true }}
@@ -591,7 +590,8 @@ const App = () => {
                                 зарегистрироваться
                             </Button>
                         </Form.Item>
-                    </Form>
+                    </Form> */}
+                    <Auth onFinish={registerToSipServer} />
                 </div>
             )}
         </Flex>
