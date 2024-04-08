@@ -202,11 +202,19 @@ const App = () => {
         phone.start();
 
         phone.on('registered', () => {
-            console.log('Registered');
-            // setIsAuth(true);
+            console.log('Registered', login, server, password);
             message.success('Зарегистрирован', 3);
             setLoading(false);
             setCurrentUser(`${login}@${server}`);
+
+            const regData = {
+                login,
+                server,
+                password,
+            };
+            chrome.storage.sync.set({ regData: regData }, () => {
+                console.log('Registration data saved to Chrome storage');
+            });
         });
         phone.on('unregistered', () => {
             console.log('logout');
@@ -309,7 +317,10 @@ const App = () => {
         setSipPhone(null);
         resetCall();
         setCallLog([]);
-        localStorage.removeItem(`callLog_${currentUser}`);
+        // localStorage.removeItem(`callLog_${currentUser}`);
+        chrome.storage.sync.remove('regData', () => {
+            console.log('remove regData from chrome storage');
+        });
     };
 
     useEffect(() => {
@@ -345,6 +356,20 @@ const App = () => {
             );
         }
     }, [callLog, currentUser]);
+
+    useEffect(() => {
+        chrome.storage.sync.get(['regData'], (data) => {
+            const regData = data.regData;
+            console.log('regData', regData);
+            if (regData) {
+                registerToSipServer({
+                    login: regData.login,
+                    server: regData.server,
+                    password: regData.password,
+                });
+            }
+        });
+    }, []);
 
     return (
         <Flex
