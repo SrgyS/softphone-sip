@@ -3,6 +3,7 @@ import inGreen from '../public/inGreen.png';
 import inRed from '../public/inRed.png';
 import outGreen from '../public/outGreen.png';
 import outRed from '../public/outRed.png';
+import { RefObject } from 'react';
 
 export const callStatuses = {
     idle: '',
@@ -33,4 +34,17 @@ export const formatDate = (date: Date) => {
         minute: '2-digit' as const,
     };
     return new Intl.DateTimeFormat('ru-RU', options).format(date);
+};
+export const startPlayAudio = (ref: RefObject<HTMLAudioElement>) => {
+    if (ref.current) {
+        ref.current.play();
+        console.log('play audio');
+    }
+};
+
+export const stopPlayAudio = (ref: RefObject<HTMLAudioElement>) => {
+    if (ref.current) {
+        ref.current.pause();
+        ref.current.currentTime = 0;
+    }
 };

@@ -2,8 +2,8 @@ import { Button, Flex, List } from 'antd';
 
 import { ICallData } from '../App';
 import { PhoneOutlined } from '@ant-design/icons';
-import { callStatuses } from '../App';
-import { getCallStatusIcon } from '../callUtils';
+
+import { callStatuses, getCallStatusIcon } from '../callUtils';
 
 interface ICallLogListProps {
     callLog: ICallData[];

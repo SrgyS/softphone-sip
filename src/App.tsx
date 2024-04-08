@@ -7,17 +7,22 @@ import {
     PhoneFilled,
     UserOutlined,
 } from '@ant-design/icons';
-// export default registerToSipServer;
-import JsSIP, { UA } from 'jssip';
-import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
-import { formatDate, formatDuration } from './callUtils';
 
-import Auth from './components/auth/Auth';
+import JsSIP, { UA } from 'jssip';
+import { useEffect, useRef, useState } from 'react';
+import {
+    formatDate,
+    formatDuration,
+    startPlayAudio,
+    stopPlayAudio,
+} from './callUtils';
+
 import { CallLogList } from './phone/CallLogList';
 import { IncomingRTCSessionEvent } from 'jssip/lib/UA';
-// import { IRegisterValues } from '../../types/types';
+
 import { RTCSession } from 'jssip/lib/RTCSession';
 import ringTone from '../public/NokiaTune.mp3';
+import Auth from './components/Auth';
 
 export const callStatuses = {
     idle: '',
@@ -34,7 +39,14 @@ export interface ICallData {
     success: boolean;
 }
 
+interface IFormValues {
+    login: string;
+    server: string;
+    password: string;
+}
+
 const App = () => {
+    const [loading, setLoading] = useState(false);
     const [number, setNumber] = useState('');
     const [incomingNumber, setIncomingNumber] = useState('');
     const [sipPhone, setSipPhone] = useState<UA | null>(null);
@@ -43,57 +55,15 @@ const App = () => {
     const [callStatus, setCallStatus] = useState(callStatuses.idle);
     const [callDuration, setCallDuration] = useState(0);
     const [startTimer, setStartTimer] = useState(false);
-    // const [isAuth, setIsAuth] = useState(false);
     const [currentUser, setCurrentUser] = useState<string>('');
 
     const addCallLog = (callData: ICallData) => {
         setCallLog((prevLog) => [...prevLog, callData]);
-
-        // if (currentUser) {
-        //     const userCallLogData = localStorage.getItem(
-        //         `callLog_${currentUser}`
-        //     );
-        //     const userCallLog = userCallLogData
-        //         ? JSON.parse(userCallLogData)
-        //         : [];
-        //     userCallLog.push(callData);
-        //     localStorage.setItem(
-        //         `callLog_${currentUser}`,
-        //         JSON.stringify(userCallLog)
-        //     );
-        // }
     };
 
-    // const addCallLog = (callData: ICallData, currentUser: string) => {
-    //     console.log('start addCallLog', callData);
-    //     setCallLog((prevLog) => {
-    //         const newLog = [...prevLog, callData];
-    //         console.log('new calllog', newLog, 'currentUser', currentUser);
-    //         if (currentUser) {
-    //             console.log(
-    //                 'current user',
-    //                 currentUser,
-    //                 'сохраняю в локал сторедж'
-    //             );
-    //             localStorage.setItem(
-    //                 `callLog_${currentUser}`,
-    //                 JSON.stringify(newLog)
-    //             );
-    //         }
-    //         return newLog;
-    //     });
-    // };
-
-    // const memoizedCallLog = useMemo(() => {
-    //     return callLog.reverse();
-    // }, [callLog]);
-
-    const handleNumberChange = useCallback(
-        (e: React.ChangeEvent<HTMLInputElement>) => {
-            setNumber(e.target.value);
-        },
-        []
-    ); // Пустой массив зависимостей, так как ф
+    const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setNumber(e.target.value);
+    };
 
     const resetCall = () => {
         setTimeout(() => {
@@ -202,14 +172,6 @@ const App = () => {
         setCallStatus(callStatuses.inCall);
     };
 
-    // const rejectCall = () => {
-    //     console.log('отклоняю входящий');
-    //     if (!activeSession) return;
-    //     console.log('отклоняю входящий session');
-    //     activeSession.terminate();
-    //     resetCall();
-    // };
-
     const endCall = () => {
         console.log(
             'функция endCall, callStatus: ',
@@ -218,27 +180,21 @@ const App = () => {
             activeSession
         );
         activeSession?.terminate();
-        // if (activeSession?.direction === 'outgoing') {
-        //     console.log('завершаю исходящий');
-        //     activeSession.terminate();
-        //     resetCall();
-        // } else if (activeSession) {
-        //     console.log('завершаю входящий');
-        //     rejectCall();
-        // }
     };
 
-    const registerToSipServer = () => {
+    const registerToSipServer = ({ login, server, password }: IFormValues) => {
+        console.log('registerToSipServer', login, server, password);
+        setLoading(true);
         console.log('registerToSipServer');
-        const hardcodedLogin = '0344900';
-        const hardcodedServer = 'voip.uiscom.ru';
-        const hardcodedPassword = 'bzTeHwYVs9';
+        // const hardcodedLogin = '0344900';
+        // const hardcodedServer = 'voip.uiscom.ru';
+        // const hardcodedPassword = 'bzTeHwYVs9';
 
-        const socket = new JsSIP.WebSocketInterface(`wss://${hardcodedServer}`);
+        const socket = new JsSIP.WebSocketInterface(`wss://${server}`);
         const configuration = {
             sockets: [socket],
-            uri: `sip:${hardcodedLogin}@${hardcodedServer}`,
-            password: hardcodedPassword,
+            uri: `sip:${login}@${server}`,
+            password: password,
         };
 
         const phone = new JsSIP.UA(configuration);
@@ -249,8 +205,8 @@ const App = () => {
             console.log('Registered');
             // setIsAuth(true);
             message.success('Зарегистрирован', 3);
-
-            setCurrentUser(`${hardcodedLogin}@${hardcodedServer}`);
+            setLoading(false);
+            setCurrentUser(`${login}@${server}`);
         });
         phone.on('unregistered', () => {
             console.log('logout');
@@ -259,10 +215,10 @@ const App = () => {
         phone.on('registrationFailed', (data: any) => {
             console.error('Registration failed:', data);
             message.error('Ошибка при регистрации');
+            setLoading(false);
         });
         phone.on('disconnected', () => {
             console.log('Отключение от SIP-сервера');
-            // Дополнительные действия при отключении
         });
         phone.on('newRTCSession', (data: IncomingRTCSessionEvent) => {
             const { originator, session } = data;
@@ -344,31 +300,16 @@ const App = () => {
             }
         });
     };
-    // const onFinish = (values: any) => {
-    //     console.log('Received values of form: ', values);
-    // };
+
     const handleLogout = () => {
         sipPhone?.terminateSessions();
         sipPhone?.unregister();
-        // setIsAuth(false);
+
         setCurrentUser('');
         setSipPhone(null);
         resetCall();
         setCallLog([]);
         localStorage.removeItem(`callLog_${currentUser}`);
-    };
-    const startPlayAudio = (ref: RefObject<HTMLAudioElement>) => {
-        if (ref.current) {
-            ref.current.play();
-            console.log('play audio');
-        }
-    };
-
-    const stopPlayAudio = (ref: RefObject<HTMLAudioElement>) => {
-        if (ref.current) {
-            ref.current.pause();
-            ref.current.currentTime = 0;
-        }
     };
 
     useEffect(() => {
@@ -411,21 +352,17 @@ const App = () => {
             gap={10}
             style={{
                 width: '350px',
-                height: '420px',
+                maxHeight: '420px',
                 padding: '10px',
                 overflow: 'auto',
             }}
         >
-            <h1
-                style={{ textAlign: 'center', fontSize: '18px', margin: '5px' }}
-            >
-                SIPhone
-            </h1>
-
             {currentUser ? (
                 <>
                     <Flex align='center' justify='space-between'>
-                        <p>{currentUser}</p>
+                        <p style={{ fontWeight: 'bold', lineHeight: 1 }}>
+                            {currentUser}
+                        </p>
                         <Button
                             type='link'
                             onClick={handleLogout}
@@ -470,7 +407,8 @@ const App = () => {
                             onChange={handleNumberChange}
                             disabled={callStatus !== callStatuses.idle}
                         />
-                        {callStatus === callStatuses.idle && (
+                        {(callStatus === callStatuses.idle ||
+                            callStatus === callStatuses.ended) && (
                             <Button
                                 block
                                 style={{
@@ -514,7 +452,7 @@ const App = () => {
 
                     <div>
                         <CallLogList
-                            callLog={callLog.reverse()}
+                            callLog={callLog}
                             makeCall={makeCall}
                             callStatus={callStatus}
                         />
@@ -525,73 +463,7 @@ const App = () => {
                 </>
             ) : (
                 <div style={{ padding: '10px' }}>
-                    {/* <Form
-                        name='normal_login'
-                        className='login-form'
-                        initialValues={{ remember: true }}
-                        onFinish={registerToSipServer}
-                    >
-                        <Form.Item
-                            name='login'
-                            rules={[
-                                {
-                                    required: false,
-                                    message: 'Введите логин!',
-                                },
-                            ]}
-                        >
-                            <Input
-                                prefix={
-                                    <UserOutlined className='site-form-item-icon' />
-                                }
-                                placeholder='логин'
-                            />
-                        </Form.Item>
-                        <Form.Item
-                            name='server'
-                            rules={[
-                                {
-                                    required: false,
-                                    message: 'Введите имя сервера!',
-                                },
-                            ]}
-                        >
-                            <Input
-                                prefix={
-                                    <HddOutlined className='site-form-item-icon' />
-                                }
-                                placeholder='сервер'
-                            />
-                        </Form.Item>
-                        <Form.Item
-                            name='password'
-                            rules={[
-                                {
-                                    required: false,
-                                    message: 'Введите пароль!',
-                                },
-                            ]}
-                        >
-                            <Input
-                                prefix={
-                                    <LockOutlined className='site-form-item-icon' />
-                                }
-                                type='password'
-                                placeholder='Пароль'
-                            />
-                        </Form.Item>
-                        <Form.Item>
-                            <Button
-                                block
-                                type='primary'
-                                htmlType='submit'
-                                className='login-form-Button'
-                            >
-                                зарегистрироваться
-                            </Button>
-                        </Form.Item>
-                    </Form> */}
-                    <Auth onFinish={registerToSipServer} />
+                    <Auth loading={loading} onFinish={registerToSipServer} />
                 </div>
             )}
         </Flex>
