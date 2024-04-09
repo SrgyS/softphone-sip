@@ -1,30 +1,33 @@
-# React + TypeScript + Vite
+# Chrome Extension SIP Softphone
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is a Chrome extension SIP softphone that allows users to make and receive calls to SIP numbers directly from their browser. It provides features such as registration to a SIP server, making outbound calls, answering incoming calls, and storing call history.
 
-Currently, two official plugins are available:
+### Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+**SIP Registration:** Users can register their SIP account to a SIP server.  
+**Make Calls:** Users can make outbound calls to SIP numbers.  
+**Receive Calls:** Users can receive incoming calls and answer them.  
+**Call History:** The extension stores the call history, allowing users to view their past calls.  
+**Built with React:** The frontend of the extension is built using React.  
+**Ant Design:** Ant Design components are used for the user interface.  
+**JsSIP Library:** JsSIP library is used for SIP functionality.
 
-## Expanding the ESLint configuration
+### Installation
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+To install the Chrome extension, follow these steps:
 
-- Configure the top-level `parserOptions` property like this:
+1. Clone the repository to your local machine.
+2. Run npm install to install dependencies.
+3. Run npm run build to build the extension.
+4. Open Chrome browser and navigate to chrome://extensions/.
+5. Enable "Developer mode" in the top right corner.
+6. Click on "Load unpacked" and select the dist folder inside the project directory.
+7. The extension will be installed and visible in the browser toolbar.
+8. After installing the extension, right-click on the extension icon and select "View site permissions for extension".
+9. Allow the extension access to the microphone.
 
-```js
-export default {
-  // other rules...
-  parserOptions: {
-    ecmaVersion: 'latest',
-    sourceType: 'module',
-    project: ['./tsconfig.json', './tsconfig.node.json'],
-    tsconfigRootDir: __dirname,
-  },
-}
-```
+### Technologies Used
 
-- Replace `plugin:@typescript-eslint/recommended` to `plugin:@typescript-eslint/recommended-type-checked` or `plugin:@typescript-eslint/strict-type-checked`
-- Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and add `plugin:react/recommended` & `plugin:react/jsx-runtime` to the `extends` list
+-   React
+-   Ant Design
+-   JsSIP

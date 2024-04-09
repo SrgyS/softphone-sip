@@ -17,43 +17,25 @@ import {
     stopPlayAudio,
 } from './callUtils';
 
-import { CallLogList } from './phone/CallLogList';
+import { CallLogList } from './components/CallLogList';
 import { IncomingRTCSessionEvent } from 'jssip/lib/UA';
 
 import { RTCSession } from 'jssip/lib/RTCSession';
 import ringTone from '../public/NokiaTune.mp3';
 import Auth from './components/Auth';
+import { ICallData, IFormValues, IIncomingCallData } from './types';
 
-export const callStatuses = {
+const callStatuses = {
     idle: '',
     calling: 'вызов',
     inCall: 'разговор',
     ended: 'завершено',
 };
 
-export interface ICallData {
-    isIncoming: boolean;
-    name: string;
-    date: string;
-    number: string;
-    success: boolean;
-}
-
-interface IFormValues {
-    login: string;
-    server: string;
-    password: string;
-}
-
-interface IIncomingCallData {
-    number: string;
-    name: string;
-}
-
 const App = () => {
     const [loading, setLoading] = useState(false);
     const [number, setNumber] = useState('');
-    // const [incomingNumber, setIncomingNumber] = useState('');
+
     const [sipPhone, setSipPhone] = useState<UA | null>(null);
     const [activeSession, setActiveSession] = useState<RTCSession | null>(null);
     const [callLog, setCallLog] = useState<ICallData[]>([]);
@@ -81,7 +63,7 @@ const App = () => {
         setStartTimer(false);
         setCallStatus(callStatuses.ended);
         setNumber('');
-        // setIncomingNumber('');
+
         setIncomingCallData(null);
     };
 
@@ -102,9 +84,8 @@ const App = () => {
     });
 
     const makeCall = (number: string) => {
-        console.log('makeCall start');
         if (!sipPhone) return;
-        console.log('Calling...', number);
+
         setCallStatus(callStatuses.calling);
         setStartTimer(true);
         setNumber(number);
@@ -118,11 +99,9 @@ const App = () => {
 
             eventHandlers: {
                 peerconnection: (data: any) => {
-                    console.log('peerconnection', data);
                     const peerconnection = data.peerconnection;
 
                     peerconnection.onaddstream = (e: any) => {
-                        console.log('add stream', e);
                         if (remoteAudioRef.current) {
                             const remoteAudio = remoteAudioRef.current;
                             remoteAudio.srcObject = e.stream;
@@ -131,22 +110,19 @@ const App = () => {
                     };
                 },
 
-                progress: () => {
-                    console.log('идет вызов');
-                },
                 failed: (e: any) => {
-                    console.error('исх Call failed:', e);
+                    console.error('исх Call failed:', e.cause);
                     addCallLog(createCallData(false, '', number, false));
                     resetCall();
+                    if (e.cause === 'User Denied Media Access') {
+                        message.error('требуется разрешить доступ к микрофону');
+                    }
                 },
                 ended: () => {
-                    console.log('исх Call ended');
-
                     addCallLog(createCallData(false, '', number, true));
                     resetCall();
                 },
                 confirmed: () => {
-                    console.log('исходящий вызов принят');
                     setCallStatus(callStatuses.inCall);
                     setCallDuration(0);
                     setStartTimer(true);
@@ -172,19 +148,12 @@ const App = () => {
     };
 
     const endCall = () => {
-        console.log(
-            'функция endCall, callStatus: ',
-            callStatus,
-            'activeCall: ',
-            activeSession
-        );
         activeSession?.terminate();
     };
 
     const registerToSipServer = ({ login, server, password }: IFormValues) => {
-        console.log('registerToSipServer', login, server, password);
         setLoading(true);
-        console.log('registerToSipServer');
+
         // const hardcodedLogin = '0344900';
         // const hardcodedServer = 'voip.uiscom.ru';
         // const hardcodedPassword = 'bzTeHwYVs9';
@@ -201,7 +170,6 @@ const App = () => {
         phone.start();
 
         phone.on('registered', () => {
-            console.log('Registered', login, server, password);
             message.success('Зарегистрирован', 3);
             setLoading(false);
             setCurrentUser(`${login}@${server}`);
@@ -211,12 +179,9 @@ const App = () => {
                 server,
                 password,
             };
-            chrome.storage.sync.set({ regData: regData }, () => {
-                console.log('Registration data saved to Chrome storage');
-            });
+            chrome.storage.sync.set({ regData: regData }, () => {});
         });
         phone.on('unregistered', () => {
-            console.log('logout');
             setCurrentUser('');
         });
         phone.on('registrationFailed', (data: any) => {
@@ -224,45 +189,34 @@ const App = () => {
             message.error('Ошибка при регистрации');
             setLoading(false);
         });
-        phone.on('disconnected', () => {
-            console.log('Отключение от SIP-сервера');
-        });
+
         phone.on('newRTCSession', (data: IncomingRTCSessionEvent) => {
             const { originator, session } = data;
 
             session.on('peerconnection', (data: any) => {
-                console.log('peerconnection in', data);
                 const peerconnection = data.peerconnection;
 
                 peerconnection.onaddstream = (e: any) => {
-                    console.log('add stream in', e);
-
                     if (remoteAudioRef.current) {
-                        console.log('remote audio already exists');
                         const remoteAudio = remoteAudioRef.current;
                         remoteAudio.srcObject = e.stream;
-                        console.log('включаю play');
+
                         remoteAudio.play();
                     }
 
                     const stream = new MediaStream();
-                    console.log(
-                        'new MediaStream',
-                        peerconnection.getReceivers()
-                    );
+
                     peerconnection
                         .getReceivers()
                         .forEach(function (receiver: any) {
-                            console.log('receiver', receiver);
                             stream.addTrack(receiver.track);
                         });
                 };
             });
 
             if (originator === 'remote') {
-                console.log('Incoming call');
                 setCallStatus(callStatuses.calling);
-                console.log('play ringtone');
+
                 startPlayAudio(ringtoneAudioRef);
                 setIncomingCallData({
                     number: session.remote_identity.uri.user,
@@ -270,8 +224,11 @@ const App = () => {
                 });
 
                 setActiveSession(session);
-                session.on('failed', () => {
+                session.on('failed', (e) => {
                     console.error('Incoming call failed');
+                    if (e.cause === 'User Denied Media Access') {
+                        message.error('требуется разрешить доступ к микрофону');
+                    }
 
                     stopPlayAudio(ringtoneAudioRef);
                     addCallLog(
@@ -287,7 +244,7 @@ const App = () => {
 
                 session.on('confirmed', () => {
                     setCallStatus(callStatuses.inCall);
-                    console.log('Incoming call confirmed');
+
                     setCallDuration(0);
                     setStartTimer(true);
                     stopPlayAudio(ringtoneAudioRef);
@@ -304,7 +261,6 @@ const App = () => {
                     resetCall();
                 });
                 session.on('progress', () => {
-                    console.log('incoming progress');
                     setStartTimer(true);
                 });
             }
@@ -319,7 +275,7 @@ const App = () => {
         setSipPhone(null);
         resetCall();
         setCallLog([]);
-        // localStorage.removeItem(`callLog_${currentUser}`);
+
         chrome.storage.sync.remove('regData', () => {
             console.log('remove regData from chrome storage');
         });
@@ -355,12 +311,12 @@ const App = () => {
                 console.log('CallLog saved to Chrome storage');
             });
         }
-    }, [callLog, currentUser]);
+    }, [callLog]);
 
     useEffect(() => {
         chrome.storage.sync.get(['regData'], (data) => {
             const regData = data.regData;
-            console.log('regData', regData);
+
             if (regData) {
                 registerToSipServer({
                     login: regData.login,

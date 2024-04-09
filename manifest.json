@@ -4,7 +4,18 @@
     "version": "1.0.0",
     "description": "Софтфон для звонков на sip-номера",
     "action": {
-        "default_popup": "index.html"
+        "default_popup": "index.html",
+        "default_icon": {
+            "16": "icon.png",
+            "24": "icon.png",
+            "32": "icon.png"
+        }
+    },
+    "icons": {
+        "16": "icon.png",
+        "48": "icon.png",
+        "128": "icon.png",
+        "256": "icon.png"
     },
     "permissions": [
         "scripting",
@@ -17,15 +28,5 @@
     ],
     "host_permissions": [
         "<all_urls>"
-    ],
-    "content_scripts": [
-        {
-            "js": [
-                "src/content.tsx"
-            ],
-            "matches": [
-                "https://*/*"
-            ]
-        }
     ]
 }

@@ -1,20 +1,14 @@
 import { Button, Flex, List } from 'antd';
 
-import { ICallData } from '../App';
 import { PhoneOutlined } from '@ant-design/icons';
 
 import { callStatuses, getCallStatusIcon } from '../callUtils';
+import { ICallData } from '../types';
 
 interface ICallLogListProps {
     callLog: ICallData[];
     makeCall: (number: string) => void;
     callStatus: string;
-    // callStatuses:  {
-    //     idle: string;
-    //     calling: string;
-    //     inCall: string;
-    //     ended: string;
-    // }
 }
 
 export const CallLogList = ({

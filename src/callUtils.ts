@@ -1,9 +1,9 @@
-import { ICallData } from './App';
 import inGreen from '../public/inGreen.png';
 import inRed from '../public/inRed.png';
 import outGreen from '../public/outGreen.png';
 import outRed from '../public/outRed.png';
 import { RefObject } from 'react';
+import { ICallData } from './types';
 
 export const callStatuses = {
     idle: '',
@@ -38,7 +38,6 @@ export const formatDate = (date: Date) => {
 export const startPlayAudio = (ref: RefObject<HTMLAudioElement>) => {
     if (ref.current) {
         ref.current.play();
-        console.log('play audio');
     }
 };
 
