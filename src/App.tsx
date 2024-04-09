@@ -45,10 +45,15 @@ interface IFormValues {
     password: string;
 }
 
+interface IIncomingCallData {
+    number: string;
+    name: string;
+}
+
 const App = () => {
     const [loading, setLoading] = useState(false);
     const [number, setNumber] = useState('');
-    const [incomingNumber, setIncomingNumber] = useState('');
+    // const [incomingNumber, setIncomingNumber] = useState('');
     const [sipPhone, setSipPhone] = useState<UA | null>(null);
     const [activeSession, setActiveSession] = useState<RTCSession | null>(null);
     const [callLog, setCallLog] = useState<ICallData[]>([]);
@@ -56,6 +61,8 @@ const App = () => {
     const [callDuration, setCallDuration] = useState(0);
     const [startTimer, setStartTimer] = useState(false);
     const [currentUser, setCurrentUser] = useState<string>('');
+    const [incomingCallData, setIncomingCallData] =
+        useState<IIncomingCallData | null>(null);
 
     const addCallLog = (callData: ICallData) => {
         setCallLog((prevLog) => [...prevLog, callData]);
@@ -74,7 +81,8 @@ const App = () => {
         setStartTimer(false);
         setCallStatus(callStatuses.ended);
         setNumber('');
-        setIncomingNumber('');
+        // setIncomingNumber('');
+        setIncomingCallData(null);
     };
 
     const ringtoneAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -120,15 +128,6 @@ const App = () => {
                             remoteAudio.srcObject = e.stream;
                             remoteAudio.play();
                         }
-
-                        // const stream = new MediaStream();
-                        // console.log(peerconnection.getReceivers());
-                        // peerconnection
-                        //     .getReceivers()
-                        //     .forEach(function (receiver: any) {
-                        //         console.log(receiver);
-                        //         stream.addTrack(receiver.track);
-                        //     });
                     };
                 },
 
@@ -155,8 +154,8 @@ const App = () => {
             },
         };
 
-        const session = sipPhone.call(`sip:${number}@voip.uiscom.ru`, options);
-        console.log('set active session make call', session);
+        const session = sipPhone.call(`sip:${number}`, options);
+
         setActiveSession(session);
     };
 
@@ -265,7 +264,10 @@ const App = () => {
                 setCallStatus(callStatuses.calling);
                 console.log('play ringtone');
                 startPlayAudio(ringtoneAudioRef);
-                setIncomingNumber(session.remote_identity.uri.user);
+                setIncomingCallData({
+                    number: session.remote_identity.uri.user,
+                    name: session.remote_identity.display_name,
+                });
 
                 setActiveSession(session);
                 session.on('failed', () => {
@@ -337,23 +339,21 @@ const App = () => {
 
     useEffect(() => {
         if (currentUser) {
-            const userCallLogData = localStorage.getItem(
-                `callLog_${currentUser}`
-            );
-            const userCallLog = userCallLogData
-                ? JSON.parse(userCallLogData)
-                : [];
-            setCallLog(userCallLog);
-            console.log('user calllog', userCallLog);
+            const storageKey = `callLog_${currentUser}`;
+            chrome.storage.sync.get([storageKey], function (data) {
+                const userCallLog = data[storageKey] || [];
+                setCallLog(userCallLog);
+                console.log('user calllog', userCallLog);
+            });
         }
     }, [currentUser]);
 
     useEffect(() => {
         if (currentUser) {
-            localStorage.setItem(
-                `callLog_${currentUser}`,
-                JSON.stringify(callLog)
-            );
+            const storageKey = `callLog_${currentUser}`;
+            chrome.storage.sync.set({ [storageKey]: callLog }, () => {
+                console.log('CallLog saved to Chrome storage');
+            });
         }
     }, [callLog, currentUser]);
 
@@ -415,9 +415,10 @@ const App = () => {
                         <Flex align='center' gap={4}>
                             {' '}
                             <UserOutlined />
+                            {incomingCallData?.name}
                         </Flex>
 
-                        <p>{number || incomingNumber}</p>
+                        <p>{number || incomingCallData?.number}</p>
                         <Flex gap={5}>
                             {' '}
                             <ClockCircleOutlined />
@@ -427,7 +428,7 @@ const App = () => {
 
                     <>
                         <Input
-                            placeholder='введите номер'
+                            placeholder='введите sip-номер'
                             value={number}
                             onChange={handleNumberChange}
                             disabled={callStatus !== callStatuses.idle}

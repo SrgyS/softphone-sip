@@ -24,7 +24,7 @@ export const CallLogList = ({
 }: ICallLogListProps) => {
     return (
         <List
-            dataSource={callLog.reverse()}
+            dataSource={callLog}
             renderItem={(item) => (
                 <List.Item>
                     <Flex gap={5}>
@@ -39,7 +39,7 @@ export const CallLogList = ({
                                 fontSize: '12px',
                                 borderRadius: '16px',
                                 padding: '4px',
-                                background: 'lightgrey',
+                                background: '#0591ff1a',
                                 lineHeight: 1,
                             }}
                         >
