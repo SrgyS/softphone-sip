@@ -57,7 +57,7 @@ const Auth = ({ onFinish, loading }: IOnFinishProps) => {
                         },
                     ]}
                 >
-                    <Input
+                    <Input.Password
                         prefix={
                             <LockOutlined className='site-form-item-icon' />
                         }
